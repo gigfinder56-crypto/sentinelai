@@ -7,7 +7,7 @@ echo =========================================================
 cd /d %~dp0
 
 git add .
-git commit -m "Fix render.yaml schema error: remove region from static site"
+git commit -m "Add dynamic origin detection for seamless single URL hackathon deployment"
 git push origin main
 
 echo.

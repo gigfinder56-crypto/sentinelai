@@ -1,7 +1,9 @@
 import { useState } from "react";
 
 export default function MessageLogPanel({ messages = [], resources = {}, onMessageSent }) {
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8001";
+  const API_BASE_URL = (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1")
+    ? window.location.origin
+    : (import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000");
   const [targetPhone, setTargetPhone] = useState("");
   const [targetEmail, setTargetEmail] = useState("");
   const [emailSubject, setEmailSubject] = useState("🚨 Sentinel AI Critical Dispatch Alert");

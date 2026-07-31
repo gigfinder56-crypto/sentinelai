@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000/ws";
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const getApiBaseUrl = () => {
+  if (import.meta.env.VITE_API_BASE_URL && !import.meta.env.VITE_API_BASE_URL.includes("127.0.0.1")) {
+    return import.meta.env.VITE_API_BASE_URL;
+  }
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    return window.location.origin;
+  }
+  return import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export function useSentinelSocket() {
   const [incidents, setIncidents] = useState([]);
@@ -18,11 +27,11 @@ export function useSentinelSocket() {
   const reconnectTimeoutRef = useRef(null);
 
   const buildWebSocketUrl = () => {
-    if (DEFAULT_WS_URL) {
-      return DEFAULT_WS_URL;
+    if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
+      return `${scheme}//${window.location.host}/ws`;
     }
-    const scheme = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${scheme}//${window.location.host}/ws`;
+    return import.meta.env.VITE_WS_URL || "ws://127.0.0.1:8000/ws";
   };
 
   const loadInitialState = useCallback(async () => {

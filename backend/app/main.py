@@ -14,7 +14,8 @@ try:
 except ImportError:
     np = None
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -420,3 +421,22 @@ async def start_cameras():
 async def stop_cameras():
     for worker in camera_workers:
         worker.stop()
+
+
+# Unified Single URL Deployment: Serve React Frontend static files from FastAPI
+BASE_PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+FRONTEND_DIST = os.path.join(BASE_PROJECT_DIR, "frontend", "dist")
+
+if os.path.exists(FRONTEND_DIST):
+    assets_path = os.path.join(FRONTEND_DIST, "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa_frontend(full_path: str):
+        if full_path.startswith("api/") or full_path in ("incidents", "resources", "detect", "ws"):
+            return JSONResponse(status_code=404, content={"error": "Not Found"})
+        target_file = os.path.join(FRONTEND_DIST, full_path)
+        if os.path.exists(target_file) and os.path.isfile(target_file):
+            return FileResponse(target_file)
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))
