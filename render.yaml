@@ -1,0 +1,44 @@
+services:
+  # =========================================================
+  # 1. FastAPI Python Backend Service
+  # =========================================================
+  - type: web
+    name: sentinel-ai-backend
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --app-dir backend
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: USE_REAL_LLM
+        value: "true"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
+
+  # =========================================================
+  # 2. React Vite Frontend Dashboard (Static Site)
+  # =========================================================
+  - type: web
+    name: sentinel-ai-frontend
+    env: static
+    region: singapore
+    plan: free
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://sentinel-ai-backend.onrender.com
+      - key: VITE_WS_URL
+        value: wss://sentinel-ai-backend.onrender.com/ws
