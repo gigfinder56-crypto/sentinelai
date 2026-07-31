@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sentinel AI — Responder Tracker</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 40px 20px; background: #111; color: #eee; }
+    input, select { font-size: 18px; padding: 10px; margin: 8px 0; width: 90%; max-width: 300px; }
+    button { font-size: 20px; padding: 14px 28px; margin-top: 20px; border-radius: 8px; border: none; }
+    #startBtn { background: #2e7d32; color: white; }
+    #stopBtn { background: #c62828; color: white; }
+    #status { margin-top: 20px; font-size: 15px; color: #9e9e9e; }
+  </style>
+</head>
+<body>
+  <h2>Sentinel AI — Responder Tracker</h2>
+
+  <input id="responderId" placeholder="Responder ID (e.g. AMB_01)" />
+  <br />
+  <select id="responderType">
+    <option value="ambulance">Ambulance</option>
+    <option value="police">Police</option>
+    <option value="fire">Fire</option>
+  </select>
+  <br />
+  <button id="startBtn">Start Sharing Location</button>
+  <button id="stopBtn" style="display:none;">Stop</button>
+
+  <div id="status">Not sharing</div>
+
+  <script>
+    const BACKEND_URL = "http://YOUR_BACKEND_IP:8000"; // <-- set this to your backend's address
+
+    let watchId = null;
+
+    document.getElementById("startBtn").onclick = () => {
+      const responderId = document.getElementById("responderId").value.trim();
+      const responderType = document.getElementById("responderType").value;
+
+      if (!responderId) {
+        alert("Enter a responder ID first");
+        return;
+      }
+      if (!navigator.geolocation) {
+        alert("Geolocation not supported on this device/browser");
+        return;
+      }
+
+      document.getElementById("startBtn").style.display = "none";
+      document.getElementById("stopBtn").style.display = "inline-block";
+      document.getElementById("status").innerText = "Starting GPS...";
+
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const { latitude, longitude } = pos.coords;
+          fetch(`${BACKEND_URL}/api/responder/location`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              responder_id: responderId,
+              lat: latitude,
+              lng: longitude,
+              responder_type: responderType,
+              status: "active",
+            }),
+          }).catch((err) => console.error("Failed to send location:", err));
+
+          document.getElementById("status").innerText =
+            `Sharing: ${latitude.toFixed(5)}, ${longitude.toFixed(5)} — ${new Date().toLocaleTimeString()}`;
+        },
+        (err) => {
+          document.getElementById("status").innerText = "GPS error: " + err.message;
+        },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+    };
+
+    document.getElementById("stopBtn").onclick = () => {
+      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      document.getElementById("startBtn").style.display = "inline-block";
+      document.getElementById("stopBtn").style.display = "none";
+      document.getElementById("status").innerText = "Stopped sharing";
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "P1",
+    "name": "Banjara Hills Police Station",
+    "lat": 17.4156,
+    "lng": 78.4347,
+    "phone": "+91 6304147149"
+  },
+  {
+    "id": "P2",
+    "name": "Jubilee Hills Police Station",
+    "lat": 17.431,
+    "lng": 78.4076,
+    "phone": "040-23540567"
+  },
+  {
+    "id": "P3",
+    "name": "Abids Police Station",
+    "lat": 17.3903,
+    "lng": 78.4759,
+    "phone": "040-24614259"
+  },
+  {
+    "id": "P4",
+    "name": "Secunderabad Police Station",
+    "lat": 17.4399,
+    "lng": 78.4983,
+    "phone": "040-27892100"
+  }
+]

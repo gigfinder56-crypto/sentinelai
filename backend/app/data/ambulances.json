@@ -1,0 +1,38 @@
+[
+  {
+    "id": "A1",
+    "name": "Ambulance Unit 1",
+    "lat": 17.4200,
+    "lng": 78.4700,
+    "status": "available",
+    "base": "Apollo Jubilee Hills",
+    "phone": "+919000000001"
+  },
+  {
+    "id": "A2",
+    "name": "Ambulance Unit 2",
+    "lat": 17.4100,
+    "lng": 78.4550,
+    "status": "available",
+    "base": "Yashoda Somajiguda",
+    "phone": "+919000000002"
+  },
+  {
+    "id": "A3",
+    "name": "Ambulance Unit 3",
+    "lat": 17.3800,
+    "lng": 78.4780,
+    "status": "available",
+    "base": "Osmania General",
+    "phone": "+919000000003"
+  },
+  {
+    "id": "A4",
+    "name": "Ambulance Unit 4",
+    "lat": 17.4350,
+    "lng": 78.4950,
+    "status": "available",
+    "base": "KIMS Secunderabad",
+    "phone": "+919000000004"
+  }
+]
