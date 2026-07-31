@@ -7,7 +7,7 @@ echo =========================================================
 cd /d %~dp0
 
 git add .
-git commit -m "Fix root route to serve React index.html and multi-path FRONTEND_DIST resolution"
+git commit -m "Fix App.jsx ReferenceError: restore useSentinelSocket hook destructuring"
 git push origin main
 
 echo.
