@@ -1,8 +1,10 @@
 import os
 import json
-from dotenv import load_dotenv
-
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 USE_REAL_LLM = os.getenv("USE_REAL_LLM", "false").lower() == "true"
 

@@ -3,15 +3,22 @@ import base64
 import json
 import logging
 
-import cv2
-from groq import Groq
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+try:
+    from groq import Groq
+except ImportError:
+    Groq = None
 
 logger = logging.getLogger(__name__)
 
 USE_REAL_LLM = os.getenv("USE_REAL_LLM", "false").lower() == "true"
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
-_client = Groq(api_key=GROQ_API_KEY) if (USE_REAL_LLM and GROQ_API_KEY) else None
+_client = Groq(api_key=GROQ_API_KEY) if (USE_REAL_LLM and GROQ_API_KEY and Groq is not None) else None
 
 VISION_MODEL = "featherless.ai/llama-4-scout-17b-16e-instruct"
 

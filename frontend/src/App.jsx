@@ -928,7 +928,7 @@ function App() {
                 <div style={{ fontSize: "2rem", marginBottom: "8px" }}>🛡️</div>
                 <h2 style={{ margin: 0, fontSize: "1.3rem", color: "#f8fafc" }}>Sentinel AI Officer Authentication</h2>
                 <p style={{ margin: "6px 0 0 0", color: "#94a3b8", fontSize: "0.85rem" }}>
-                  Powered by Supabase Auth — Request a 6-digit OTP verification code to log in as an Emergency Commander.
+                  Request a 6-digit OTP verification code to log in as an Emergency Commander.
                 </p>
               </div>
 

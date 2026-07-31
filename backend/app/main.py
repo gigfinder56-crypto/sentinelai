@@ -4,9 +4,16 @@ import os
 import traceback
 from typing import List
 
-import cv2
-import numpy as np
-from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
+try:
+    import cv2
+except ImportError:
+    cv2 = None
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -114,6 +121,20 @@ class DirectEmailRequest(BaseModel):
     name: str = "Emergency Department"
 
 
+class AudioCallRequest(BaseModel):
+    caller_phone: str = "+91 9876543210"
+    transcript: str
+    lat: float = 17.4160
+    lng: float = 78.4470
+
+
+class SocialPostRequest(BaseModel):
+    author: str = "@hyderabad_citizen"
+    post_text: str
+    lat: float = 17.4200
+    lng: float = 78.4550
+
+
 @app.get("/")
 def root():
     return {"status": "Sentinel AI backend running"}
@@ -163,6 +184,38 @@ async def send_direct_email(payload: DirectEmailRequest):
     return {"ok": True, "message": entry}
 
 
+@app.post("/api/intake/audio_call")
+async def intake_audio_call(payload: AudioCallRequest):
+    """Ingest 108 emergency voice transcript, classify via LLM, and trigger autonomous dispatches."""
+    incident = coordinator.process_audio_call(
+        transcript=payload.transcript,
+        caller_phone=payload.caller_phone,
+        lat=payload.lat,
+        lng=payload.lng,
+    )
+    await broadcast({"type": "incident_update", "data": incident})
+    if incident.get("dispatch") and incident["dispatch"].get("notifications"):
+        for msg in incident["dispatch"]["notifications"]:
+            await broadcast({"type": "message_sent", "data": msg})
+    return {"ok": True, "incident": incident}
+
+
+@app.post("/api/intake/social_post")
+async def intake_social_post(payload: SocialPostRequest):
+    """Ingest social media citizen SOS post, extract location & disaster severity, and dispatch responders."""
+    incident = coordinator.process_social_post(
+        post_text=payload.post_text,
+        author=payload.author,
+        lat=payload.lat,
+        lng=payload.lng,
+    )
+    await broadcast({"type": "incident_update", "data": incident})
+    if incident.get("dispatch") and incident["dispatch"].get("notifications"):
+        for msg in incident["dispatch"]["notifications"]:
+            await broadcast({"type": "message_sent", "data": msg})
+    return {"ok": True, "incident": incident}
+
+
 @app.post("/api/admin/resources/register")
 async def register_resource(payload: ResourceRegistration):
     resource = coordinator.gis_agent.register_resource(
@@ -194,8 +247,8 @@ async def send_twilio_sms(payload: TwilioMessageRequest):
 
 
 @app.post("/api/admin/resources/upload")
-async def upload_resources(file: UploadFile = File(...)):
-    contents = await file.read()
+async def upload_resources(request: Request):
+    contents = await request.body()
     try:
         payload = json.loads(contents.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
@@ -277,23 +330,21 @@ def get_responders():
 
 @app.post("/detect")
 @app.post("/api/detect")
-async def detect_from_image(
-    file: UploadFile = File(...),
-    camera_id: str = Form("CAM_UPLOAD"),
-    lat: float = Form(17.4160),
-    lng: float = Form(78.4470),
-):
+async def detect_from_image(request: Request):
     """
     Upload an image, run the full pipeline (vision -> OCR -> classify -> GIS -> routing -> dispatch),
     broadcast the result to all connected dashboards, and return it.
     """
     try:
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        if frame is None:
-            return JSONResponse(status_code=400, content={"error": "Could not decode image"})
+        contents = await request.body()
+        camera_id = request.query_params.get("camera_id", "CAM_UPLOAD")
+        lat = float(request.query_params.get("lat", 17.4160))
+        lng = float(request.query_params.get("lng", 78.4470))
+        if np is not None and cv2 is not None:
+            nparr = np.frombuffer(contents, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        else:
+            frame = None
 
         detections = vision_agent.detect_frame(frame)
         incident = coordinator.process_incident(
@@ -323,6 +374,16 @@ async def resolve_incident(incident_id: str):
     return incident or {"error": "Incident not found"}
 
 
+@app.get("/api/weather")
+def get_weather():
+    return {"weather": coordinator.weather_agent.get_weather_telemetry()}
+
+
+@app.get("/api/traffic_signals")
+def get_traffic_signals():
+    return coordinator.routing_agent.get_traffic_signals()
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """Dashboard connects here to receive live incident updates."""
@@ -338,11 +399,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "responders": responder_agent.get_all(),
                 "weather": coordinator.weather_agent.get_weather_telemetry(),
                 "traffic_signals": coordinator.routing_agent.get_traffic_signals(),
-                "resources": {
-                    "hospitals": coordinator.gis_agent.hospitals,
-                    "police_stations": coordinator.gis_agent.police_stations,
-                    "ambulances": coordinator.gis_agent.ambulances,
-                },
+                "resources": coordinator.gis_agent.get_resource_snapshot(),
             },
         }))
 

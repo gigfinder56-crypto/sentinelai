@@ -1,7 +1,10 @@
 import asyncio
 import time
 import os
-import cv2
+try:
+    import cv2
+except ImportError:
+    cv2 = None
 
 from app.agents.vision_agent import VisionAgent
 from app.agents.coordinator_agent import CoordinatorAgent

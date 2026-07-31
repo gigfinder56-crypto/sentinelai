@@ -3,19 +3,11 @@ import os
 import time
 import uuid
 
-from dotenv import load_dotenv
-from dotenv import load_dotenv
-from app.agents.gis_agent import GISAgent
-from app.agents.classifier_agent import ClassifierAgent
-from app.agents.ocr_agent import OCRAgent
-from app.agents.speech_agent import SpeechAgent
-from app.agents.weather_agent import WeatherAgent
-from app.agents.routing_agent import RoutingAgent
-from app.agents.featherless_agent import FeatherlessAIAgent
-from app.agents.email_agent import EmailAgent
-from app.supabase_client import supabase_client
-
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 def format_e164_phone(phone: str) -> str:
     if not phone:
@@ -33,6 +25,15 @@ try:
     from twilio.rest import Client as TwilioClient
 except ImportError:
     TwilioClient = None
+
+from app.agents.gis_agent import GISAgent
+from app.agents.classifier_agent import ClassifierAgent
+from app.agents.ocr_agent import OCRAgent
+from app.agents.speech_agent import SpeechAgent
+from app.agents.weather_agent import WeatherAgent
+from app.agents.routing_agent import RoutingAgent
+from app.agents.featherless_agent import FeatherlessAIAgent
+from app.agents.email_agent import EmailAgent
 
 
 class CoordinatorAgent:
@@ -372,10 +373,8 @@ class CoordinatorAgent:
                     severity=incident.get("classification", {}).get("severity", "high"),
                 )
                 self.message_logs.insert(0, eml_log)
-                supabase_client.sync_message(eml_log)
                 results.append(eml_log)
 
-        supabase_client.sync_incident(incident)
         return results
 
     def _place_ai_call(self, phone_number, resource_name, resource_type, incident, override_body=None):

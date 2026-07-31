@@ -47,7 +47,6 @@ def find_nearest(incident_lat, incident_lng, locations, top_n=1):
     return ranked[:top_n]
 
 
-from app.supabase_client import supabase_client
 
 
 class GISAgent:
@@ -245,7 +244,6 @@ class GISAgent:
         conn.commit()
         conn.close()
         self._reload_cache()
-        supabase_client.sync_resource(resource_type_db, record)
         return record
 
     def update_resource_contact(self, resource_type, resource_id, phone="", email=""):
@@ -292,7 +290,6 @@ class GISAgent:
         )
         for resource in self.get_resource_snapshot()[group_key]:
             if resource["id"] == resource_id:
-                supabase_client.sync_resource(resource_type_db, resource)
                 return resource
         return None
 
