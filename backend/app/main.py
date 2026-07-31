@@ -136,8 +136,8 @@ class SocialPostRequest(BaseModel):
     lng: float = 78.4550
 
 
-@app.get("/")
-def root():
+@app.get("/api/health")
+def health_check():
     return {"status": "Sentinel AI backend running"}
 
 
@@ -424,10 +424,21 @@ async def stop_cameras():
 
 
 # Unified Single URL Deployment: Serve React Frontend static files from FastAPI
-BASE_PROJECT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-FRONTEND_DIST = os.path.join(BASE_PROJECT_DIR, "frontend", "dist")
+possible_dist_paths = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")),
+    os.path.abspath(os.path.join(os.getcwd(), "frontend", "dist")),
+    os.path.abspath(os.path.join(os.getcwd(), "..", "frontend", "dist")),
+]
 
-if os.path.exists(FRONTEND_DIST):
+FRONTEND_DIST = None
+for p in possible_dist_paths:
+    if os.path.exists(p) and os.path.isdir(p):
+        FRONTEND_DIST = p
+        break
+
+if FRONTEND_DIST:
+    print(f"[Sentinel AI] Mounting React Frontend from: {FRONTEND_DIST}")
     assets_path = os.path.join(FRONTEND_DIST, "assets")
     if os.path.exists(assets_path):
         app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
@@ -437,6 +448,6 @@ if os.path.exists(FRONTEND_DIST):
         if full_path.startswith("api/") or full_path in ("incidents", "resources", "detect", "ws"):
             return JSONResponse(status_code=404, content={"error": "Not Found"})
         target_file = os.path.join(FRONTEND_DIST, full_path)
-        if os.path.exists(target_file) and os.path.isfile(target_file):
+        if full_path and os.path.exists(target_file) and os.path.isfile(target_file):
             return FileResponse(target_file)
         return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))

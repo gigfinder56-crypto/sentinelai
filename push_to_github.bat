@@ -7,7 +7,7 @@ echo =========================================================
 cd /d %~dp0
 
 git add .
-git commit -m "Add dynamic origin detection for seamless single URL hackathon deployment"
+git commit -m "Fix root route to serve React index.html and multi-path FRONTEND_DIST resolution"
 git push origin main
 
 echo.
