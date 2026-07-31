@@ -7,7 +7,7 @@ echo =========================================================
 cd /d %~dp0
 
 git add .
-git commit -m "Add render.yaml deployment configuration for Render.com"
+git commit -m "Fix render.yaml schema error: remove region from static site"
 git push origin main
 
 echo.
