@@ -13,7 +13,7 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 _client = Groq(api_key=GROQ_API_KEY) if (USE_REAL_LLM and GROQ_API_KEY) else None
 
-VISION_MODEL = "llama-4-scout-17b-16e-instruct"
+VISION_MODEL = "featherless.ai/llama-4-scout-17b-16e-instruct"
 
 SYSTEM_PROMPT = (
     "You are a public safety analyst reviewing a single CCTV frame. "
@@ -43,7 +43,7 @@ def _fallback_result(reason: str) -> dict:
 
 def analyze_frame(frame, camera_id: str = "unknown") -> dict:
     """
-    Send a single frame to the Groq vision model and return a structured
+    Send a single frame to the featherless.ai vision model and return a structured
     hazard assessment. Falls back to a safe no-op result if the LLM is
     disabled, misconfigured, or the call fails — this should never crash
     the main detection pipeline.
@@ -52,7 +52,7 @@ def analyze_frame(frame, camera_id: str = "unknown") -> dict:
         return _fallback_result("USE_REAL_LLM is false")
 
     if _client is None:
-        return _fallback_result("Groq client not initialized (missing API key?)")
+        return _fallback_result("featherless.ai client not initialized (missing API key?)")
 
     try:
         b64_image = _frame_to_base64(frame)

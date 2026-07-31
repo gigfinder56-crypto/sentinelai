@@ -4,7 +4,7 @@
     "name": "Banjara Hills Police Station",
     "lat": 17.4156,
     "lng": 78.4347,
-    "phone": "+91 6304147149"
+    "phone": "+919000000102"
   },
   {
     "id": "P2",
@@ -26,5 +26,12 @@
     "lat": 17.4399,
     "lng": 78.4983,
     "phone": "040-27892100"
+  },
+  {
+    "id": "P5",
+    "name": "Traffic Police Control Room",
+    "lat": 17.4160,
+    "lng": 78.4470,
+    "phone": "+919000000103"
   }
 ]

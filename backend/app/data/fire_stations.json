@@ -1,0 +1,26 @@
+[
+  {
+    "id": "FS1",
+    "name": "Punjagutta Central Fire Station",
+    "lat": 17.4260,
+    "lng": 78.4530,
+    "phone": "+91 9000000104",
+    "status": "active"
+  },
+  {
+    "id": "FS2",
+    "name": "Secunderabad Fire & Rescue Command",
+    "lat": 17.4420,
+    "lng": 78.4960,
+    "phone": "+91 9000000105",
+    "status": "active"
+  },
+  {
+    "id": "FS3",
+    "name": "Madhapur High-Tech City Fire Station",
+    "lat": 17.4480,
+    "lng": 78.3810,
+    "phone": "+91 9000000106",
+    "status": "active"
+  }
+]

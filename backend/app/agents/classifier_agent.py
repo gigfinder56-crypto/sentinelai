@@ -47,16 +47,29 @@ def _box_overlap_ratio(box1, box2):
 
 class ClassifierAgent:
     def __init__(self):
-        self.model = "llama-3.3-70b-versatile"  # Groq's flagship free model
         self.client = None
+        self.model = "llama-3.3-70b-versatile"
         if USE_REAL_LLM:
-            try:
-                from groq import Groq
-                self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
-            except Exception as error:
-                print("[ClassifierAgent] Failed to initialize Groq client:", error)
-                print("[ClassifierAgent] Falling back to rule-based classification.")
-                self.client = None
+            featherless_key = os.getenv("FEATHERLESS_API_KEY")
+            featherless_url = os.getenv("FEATHERLESS_BASE_URL", "https://api.featherless.ai/v1")
+            groq_key = os.getenv("GROQ_API_KEY")
+
+            if featherless_key:
+                try:
+                    from openai import OpenAI
+                    self.client = OpenAI(base_url=featherless_url, api_key=featherless_key)
+                    self.model = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+                    print("[ClassifierAgent] Initialized Featherless AI client.")
+                except Exception as err:
+                    print("[ClassifierAgent] Featherless AI init failed:", err)
+            elif groq_key:
+                try:
+                    from groq import Groq
+                    self.client = Groq(api_key=groq_key)
+                    self.model = "llama-3.3-70b-versatile"
+                    print("[ClassifierAgent] Initialized Groq LLM client.")
+                except Exception as error:
+                    print("[ClassifierAgent] Groq init failed:", error)
 
     def classify(self, detections, camera_id="CAM_01", hazard_signals=None):
         if USE_REAL_LLM and self.client is not None:

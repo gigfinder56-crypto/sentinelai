@@ -36,7 +36,7 @@ connected_clients: List[WebSocket] = []
 ENABLE_CAMERA_SIMULATION = os.getenv("ENABLE_CAMERA_SIMULATION", "false").lower() in ("1", "true", "yes")
 
 
-def broadcast(message: dict):
+async def broadcast(message: dict):
     """Send a message to every connected dashboard client."""
     dead_clients = []
     for client in connected_clients:
@@ -92,7 +92,26 @@ class ResourceRegistration(BaseModel):
     lat: float
     lng: float
     phone: str = ""
+    email: str = ""
     status: str = ""
+
+
+class TwilioMessageRequest(BaseModel):
+    to: str
+    body: str
+
+
+class DirectMessageRequest(BaseModel):
+    phone: str
+    body: str
+    name: str = "Emergency Contact"
+
+
+class DirectEmailRequest(BaseModel):
+    email: str
+    subject: str = "Sentinel AI Emergency Alert"
+    body: str
+    name: str = "Emergency Department"
 
 
 @app.get("/")
@@ -112,6 +131,38 @@ def get_resources():
     return coordinator.gis_agent.get_resource_snapshot()
 
 
+@app.get("/api/messages")
+def get_messages():
+    """Return all dispatch and SMS communication logs."""
+    return coordinator.get_all_messages()
+
+
+@app.post("/api/messages/send")
+async def send_direct_message(payload: DirectMessageRequest):
+    """Send a direct SMS alert to a recipient phone number."""
+    entry = coordinator.send_manual_message(payload.phone, payload.body, recipient_name=payload.name)
+    await broadcast({"type": "message_sent", "data": entry})
+    if entry.get("sms_status") == "failed":
+        return {"ok": False, "error": entry.get("error") or "Twilio SMS dispatch failed", "message": entry}
+    return {"ok": True, "message": entry}
+
+
+@app.post("/api/email/send")
+async def send_direct_email(payload: DirectEmailRequest):
+    """Send a direct Emergency Email alert to any target email address."""
+    entry = coordinator.email_agent.send_emergency_email(
+        to_email=payload.email,
+        recipient_name=payload.name,
+        subject=payload.subject,
+        body_text=payload.body,
+        incident_id="DIRECT",
+        severity="HIGH",
+    )
+    coordinator.message_logs.insert(0, entry)
+    await broadcast({"type": "message_sent", "data": entry})
+    return {"ok": True, "message": entry}
+
+
 @app.post("/api/admin/resources/register")
 async def register_resource(payload: ResourceRegistration):
     resource = coordinator.gis_agent.register_resource(
@@ -120,6 +171,7 @@ async def register_resource(payload: ResourceRegistration):
         lat=payload.lat,
         lng=payload.lng,
         phone=payload.phone,
+        email=payload.email,
         status=payload.status,
     )
     if not resource:
@@ -130,6 +182,15 @@ async def register_resource(payload: ResourceRegistration):
         "data": {"resources": coordinator.gis_agent.get_resource_snapshot()},
     })
     return {"ok": True, "resource": resource, "resources": coordinator.gis_agent.get_resource_snapshot()}
+
+
+@app.post("/api/twilio/send_sms")
+async def send_twilio_sms(payload: TwilioMessageRequest):
+    try:
+        sms = coordinator.send_twilio_sms(payload.to, payload.body)
+        return {"ok": True, "sid": sms.sid, "status": sms.status}
+    except Exception as error:
+        return JSONResponse(status_code=500, content={"error": str(error)})
 
 
 @app.post("/api/admin/resources/upload")
@@ -223,7 +284,7 @@ async def detect_from_image(
     lng: float = Form(78.4470),
 ):
     """
-    Upload an image, run the full pipeline (vision -> classify -> GIS -> dispatch),
+    Upload an image, run the full pipeline (vision -> OCR -> classify -> GIS -> routing -> dispatch),
     broadcast the result to all connected dashboards, and return it.
     """
     try:
@@ -240,9 +301,13 @@ async def detect_from_image(
             camera_id=camera_id,
             camera_lat=lat,
             camera_lng=lng,
+            frame=frame,
         )
 
         await broadcast({"type": "incident_update", "data": incident})
+        if incident.get("dispatch") and incident["dispatch"].get("notifications"):
+            for msg in incident["dispatch"]["notifications"]:
+                await broadcast({"type": "message_sent", "data": msg})
         return incident
     except Exception as error:
         print("[detect_from_image] Unhandled error:", error)
@@ -269,7 +334,10 @@ async def websocket_endpoint(websocket: WebSocket):
             "type": "initial_state",
             "data": {
                 "incidents": coordinator.get_all_incidents(),
+                "messages": coordinator.get_all_messages(),
                 "responders": responder_agent.get_all(),
+                "weather": coordinator.weather_agent.get_weather_telemetry(),
+                "traffic_signals": coordinator.routing_agent.get_traffic_signals(),
                 "resources": {
                     "hospitals": coordinator.gis_agent.hospitals,
                     "police_stations": coordinator.gis_agent.police_stations,

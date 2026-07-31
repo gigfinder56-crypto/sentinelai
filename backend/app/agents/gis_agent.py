@@ -47,12 +47,16 @@ def find_nearest(incident_lat, incident_lng, locations, top_n=1):
     return ranked[:top_n]
 
 
+from app.supabase_client import supabase_client
+
+
 class GISAgent:
     def __init__(self):
         self._init_db()
         self.hospitals = self._load_resources("hospital")
         self.police_stations = self._load_resources("police_station")
         self.ambulances = self._load_resources("ambulance")
+        self.fire_stations = self._load_resources("fire_station")
 
     def _connect_db(self):
         conn = sqlite3.connect(DB_PATH)
@@ -70,42 +74,56 @@ class GISAgent:
                 lat REAL NOT NULL,
                 lng REAL NOT NULL,
                 phone TEXT DEFAULT '',
+                email TEXT DEFAULT '',
                 status TEXT DEFAULT '',
                 extra TEXT DEFAULT ''
             )
             """
         )
+        try:
+            conn.execute("ALTER TABLE resources ADD COLUMN email TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         conn.commit()
 
-        existing = conn.execute("SELECT COUNT(*) as count FROM resources").fetchone()["count"]
-        if existing == 0:
-            for resource_type, filename in [
-                ("hospital", "hospitals.json"),
-                ("police_station", "police_stations.json"),
-                ("ambulance", "ambulances.json"),
-            ]:
-                for item in load_json(filename):
-                    conn.execute(
-                        "INSERT INTO resources (id, resource_type, name, lat, lng, phone, status, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        (
-                            item.get("id"),
-                            resource_type,
-                            item.get("name"),
-                            item.get("lat"),
-                            item.get("lng"),
-                            item.get("phone", ""),
-                            item.get("status", ""),
-                            json.dumps({"base": item.get("base", ""), "type": item.get("type", "")}),
-                        ),
-                    )
-            conn.commit()
-
+        for resource_type, filename in [
+            ("hospital", "hospitals.json"),
+            ("police_station", "police_stations.json"),
+            ("ambulance", "ambulances.json"),
+            ("fire_station", "fire_stations.json"),
+        ]:
+            for item in load_json(filename):
+                default_email = item.get("email") or f"{item.get('id').lower()}@{resource_type}.emergency.gov.in"
+                conn.execute(
+                    """
+                    INSERT INTO resources (id, resource_type, name, lat, lng, phone, email, status, extra)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        phone=excluded.phone,
+                        email=excluded.email,
+                        name=excluded.name,
+                        lat=excluded.lat,
+                        lng=excluded.lng
+                    """,
+                    (
+                        item.get("id"),
+                        resource_type,
+                        item.get("name"),
+                        item.get("lat"),
+                        item.get("lng"),
+                        item.get("phone", ""),
+                        default_email,
+                        item.get("status", "available"),
+                        json.dumps({"base": item.get("base", ""), "type": item.get("type", "")}),
+                    ),
+                )
+        conn.commit()
         conn.close()
 
     def _load_resources(self, resource_type):
         conn = self._connect_db()
         rows = conn.execute(
-            "SELECT id, name, lat, lng, phone, status FROM resources WHERE resource_type = ? ORDER BY id",
+            "SELECT id, name, lat, lng, phone, email, status FROM resources WHERE resource_type = ? ORDER BY id",
             (resource_type,),
         ).fetchall()
         conn.close()
@@ -116,6 +134,7 @@ class GISAgent:
                 "lat": row["lat"],
                 "lng": row["lng"],
                 "phone": row["phone"],
+                "email": row["email"] or f"{row['id'].lower()}@{resource_type}.emergency.gov.in",
                 "status": row["status"],
             }
             for row in rows
@@ -125,6 +144,7 @@ class GISAgent:
         self.hospitals = self._load_resources("hospital")
         self.police_stations = self._load_resources("police_station")
         self.ambulances = self._load_resources("ambulance")
+        self.fire_stations = self._load_resources("fire_station")
 
     def _rank_resources(self, incident_lat, incident_lng, locations, top_n=None, radius_km=None):
         ranked = find_nearest(incident_lat, incident_lng, locations, top_n=top_n or len(locations))
@@ -135,36 +155,43 @@ class GISAgent:
     def find_resources(self, incident_lat, incident_lng, radius_km=10):
         """
         Given an incident location, find the nearest hospital,
-        police station, and available ambulance plus nearby resource counts.
+        police station, ambulance, and fire station plus nearby resource counts.
         """
         nearby_hospitals = self._rank_resources(incident_lat, incident_lng, self.hospitals, radius_km=radius_km)
         nearby_police_stations = self._rank_resources(incident_lat, incident_lng, self.police_stations, radius_km=radius_km)
+        nearby_fire_stations = self._rank_resources(incident_lat, incident_lng, self.fire_stations, radius_km=radius_km)
 
-        available_ambulances = [a for a in self.ambulances if a["status"] == "available"]
+        available_ambulances = [a for a in self.ambulances if a["status"] in ("available", "active", "")]
+        if not available_ambulances:
+            available_ambulances = self.ambulances
         nearby_ambulances = self._rank_resources(incident_lat, incident_lng, available_ambulances, radius_km=radius_km)
 
         nearest_hospital = nearby_hospitals[0] if nearby_hospitals else None
         nearest_police = nearby_police_stations[0] if nearby_police_stations else None
-        nearest_ambulance = nearby_ambulances[0] if nearby_ambulances else None
+        nearest_fire = nearby_fire_stations[0] if nearby_fire_stations else None
+        nearest_ambulance = nearby_ambulances[0] if nearby_ambulances else (self.ambulances[0] if self.ambulances else None)
 
         return {
             "hospital": nearest_hospital,
             "police_station": nearest_police,
+            "fire_station": nearest_fire,
             "ambulance": nearest_ambulance,
             "nearby_resources": {
                 "hospitals": nearby_hospitals,
                 "police_stations": nearby_police_stations,
                 "ambulances": nearby_ambulances,
+                "fire_stations": nearby_fire_stations,
             },
             "nearby_counts": {
                 "hospitals": len(nearby_hospitals),
                 "police_stations": len(nearby_police_stations),
                 "ambulances": len(nearby_ambulances),
+                "fire_stations": len(nearby_fire_stations),
             },
             "radius_km": radius_km,
         }
 
-    def register_resource(self, resource_type, name, lat, lng, phone="", status=""):
+    def register_resource(self, resource_type, name, lat, lng, phone="", email="", status=""):
         normalized_type = (resource_type or "").lower().replace(" ", "_")
         resource_map = {
             "hospital": "hospital",
@@ -173,6 +200,8 @@ class GISAgent:
             "police_stations": "police_station",
             "ambulance": "ambulance",
             "ambulances": "ambulance",
+            "fire_station": "fire_station",
+            "fire_stations": "fire_station",
         }
 
         if normalized_type not in resource_map:
@@ -181,43 +210,26 @@ class GISAgent:
         resource_type_db = resource_map[normalized_type]
         conn = self._connect_db()
         existing_ids = {row[0] for row in conn.execute("SELECT id FROM resources WHERE resource_type = ?", (resource_type_db,))}
-        prefix = "H" if resource_type_db == "hospital" else "P" if resource_type_db == "police_station" else "A"
+        prefix = "H" if resource_type_db == "hospital" else "P" if resource_type_db == "police_station" else "F" if resource_type_db == "fire_station" else "A"
         numeric = 1
         while f"{prefix}{numeric}" in existing_ids:
             numeric += 1
         resource_id = f"{prefix}{numeric}"
 
-        if resource_type_db == "hospital":
-            record = {
-                "id": resource_id,
-                "name": name,
-                "lat": float(lat),
-                "lng": float(lng),
-                "phone": phone or "",
-                "type": "registered",
-            }
-        elif resource_type_db == "police_station":
-            record = {
-                "id": resource_id,
-                "name": name,
-                "lat": float(lat),
-                "lng": float(lng),
-                "phone": phone or "",
-                "status": status or "active",
-            }
-        else:
-            record = {
-                "id": resource_id,
-                "name": name,
-                "lat": float(lat),
-                "lng": float(lng),
-                "status": status or "available",
-                "base": name,
-                "phone": phone or "",
-            }
+        record_email = email or f"{resource_id.lower()}@{resource_type_db}.emergency.gov.in"
+
+        record = {
+            "id": resource_id,
+            "name": name,
+            "lat": float(lat),
+            "lng": float(lng),
+            "phone": phone or "",
+            "email": record_email,
+            "status": status or ("available" if resource_type_db == "ambulance" else "active"),
+        }
 
         conn.execute(
-            "INSERT INTO resources (id, resource_type, name, lat, lng, phone, status, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO resources (id, resource_type, name, lat, lng, phone, email, status, extra) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 record["id"],
                 resource_type_db,
@@ -225,16 +237,18 @@ class GISAgent:
                 float(lat),
                 float(lng),
                 record.get("phone", ""),
+                record.get("email", ""),
                 record.get("status", ""),
-                json.dumps({"base": record.get("base", ""), "type": record.get("type", "")}),
+                json.dumps({"base": name, "type": "registered"}),
             ),
         )
         conn.commit()
         conn.close()
         self._reload_cache()
+        supabase_client.sync_resource(resource_type_db, record)
         return record
 
-    def update_resource_contact(self, resource_type, resource_id, phone):
+    def update_resource_contact(self, resource_type, resource_id, phone="", email=""):
         resource_map = {
             "hospital": "hospital",
             "hospitals": "hospital",
@@ -242,6 +256,8 @@ class GISAgent:
             "police_stations": "police_station",
             "ambulance": "ambulance",
             "ambulances": "ambulance",
+            "fire_station": "fire_station",
+            "fire_stations": "fire_station",
         }
 
         if resource_type not in resource_map:
@@ -249,18 +265,34 @@ class GISAgent:
 
         resource_type_db = resource_map[resource_type]
         conn = self._connect_db()
-        conn.execute(
-            "UPDATE resources SET phone = ? WHERE id = ? AND resource_type = ?",
-            (phone, resource_id, resource_type_db),
-        )
+        if phone and email:
+            conn.execute(
+                "UPDATE resources SET phone = ?, email = ? WHERE id = ? AND resource_type = ?",
+                (phone, email, resource_id, resource_type_db),
+            )
+        elif phone:
+            conn.execute(
+                "UPDATE resources SET phone = ? WHERE id = ? AND resource_type = ?",
+                (phone, resource_id, resource_type_db),
+            )
+        elif email:
+            conn.execute(
+                "UPDATE resources SET email = ? WHERE id = ? AND resource_type = ?",
+                (email, resource_id, resource_type_db),
+            )
         conn.commit()
         conn.close()
         self._reload_cache()
 
-        for resource in self.get_resource_snapshot()[
-            "hospitals" if resource_type_db == "hospital" else "police_stations" if resource_type_db == "police_station" else "ambulances"
-        ]:
+        group_key = (
+            "hospitals" if resource_type_db == "hospital"
+            else "police_stations" if resource_type_db == "police_station"
+            else "fire_stations" if resource_type_db == "fire_station"
+            else "ambulances"
+        )
+        for resource in self.get_resource_snapshot()[group_key]:
             if resource["id"] == resource_id:
+                supabase_client.sync_resource(resource_type_db, resource)
                 return resource
         return None
 
@@ -269,6 +301,7 @@ class GISAgent:
             "hospitals": self.hospitals,
             "police_stations": self.police_stations,
             "ambulances": self.ambulances,
+            "fire_stations": self.fire_stations,
         }
 
     def mark_ambulance_dispatched(self, ambulance_id):

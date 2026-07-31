@@ -2,6 +2,7 @@ export default function ResourceLegend({ resources }) {
   const hospitals = resources?.hospitals || [];
   const policeStations = resources?.police_stations || [];
   const ambulances = resources?.ambulances || [];
+  const fireStations = resources?.fire_stations || [];
 
   return (
     <div className="resource-legend">
@@ -9,7 +10,8 @@ export default function ResourceLegend({ resources }) {
       <p>🏥 Hospitals: {hospitals.length}</p>
       <p>🚓 Police Stations: {policeStations.length}</p>
       <p>🚑 Ambulances: {ambulances.length}</p>
-      <p>📞 Phone-enabled dispatch contacts are now tracked per resource.</p>
+      <p>🚒 Fire Stations: {fireStations.length}</p>
+      <p>📞 Phone-enabled dispatch contacts are tracked per resource.</p>
     </div>
   );
 }

@@ -6,7 +6,7 @@
     "lng": 78.4700,
     "status": "available",
     "base": "Apollo Jubilee Hills",
-    "phone": "+919000000001"
+    "phone": "+919010310772"
   },
   {
     "id": "A2",
@@ -15,7 +15,7 @@
     "lng": 78.4550,
     "status": "available",
     "base": "Yashoda Somajiguda",
-    "phone": "+919000000002"
+    "phone": "+919010310772"
   },
   {
     "id": "A3",
@@ -24,7 +24,7 @@
     "lng": 78.4780,
     "status": "available",
     "base": "Osmania General",
-    "phone": "+919000000003"
+    "phone": "+919010310772"
   },
   {
     "id": "A4",
@@ -33,6 +33,6 @@
     "lng": 78.4950,
     "status": "available",
     "base": "KIMS Secunderabad",
-    "phone": "+919000000004"
+    "phone": "+919010310772"
   }
 ]
